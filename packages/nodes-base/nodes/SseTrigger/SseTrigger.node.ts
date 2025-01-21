@@ -36,7 +36,35 @@ export class SseTrigger implements INodeType {
 		},
 		inputs: [],
 		outputs: [NodeConnectionType.Main],
+		credentials: [
+			{
+				name: 'httpHeaderAuthApi',
+				required: true,
+				displayOptions: {
+					show: {
+						authentication: ['headerAuth'],
+					},
+				},
+			},
+		],
 		properties: [
+			{
+				displayName: 'Authentication',
+				name: 'authentication',
+				type: 'options',
+				options: [
+					{
+						name: 'Header Auth',
+						value: 'headerAuth',
+					},
+					{
+						name: 'None',
+						value: 'none',
+					},
+				],
+				default: 'none',
+				description: 'The way to authenticate',
+			},
 			{
 				displayName: 'URL',
 				name: 'url',
@@ -50,9 +78,28 @@ export class SseTrigger implements INodeType {
 	};
 
 	async trigger(this: ITriggerFunctions): Promise<ITriggerResponse> {
-		const url = this.getNodeParameter('url') as string;
+		let httpHeaderAuth;
+		let authorizationString;
+		let headers;
 
-		const eventSource = new EventSource(url);
+		const url = this.getNodeParameter('url') as string;
+		try {
+			httpHeaderAuth = await this.getCredentials('httpHeaderAuthApi');
+		} catch (error) {
+			// Do nothing
+		}
+
+		if (httpHeaderAuth !== undefined && httpHeaderAuth !== undefined) {
+			authorizationString = 'Bearer ' + httpHeaderAuth.value;
+			headers = {
+				headers: {
+					Authorization: authorizationString,
+				},
+			};
+		}
+
+		const eventSource = new EventSource(url, headers);
+		// const eventSource = new EventSource(url);
 
 		eventSource.onmessage = (event) => {
 			const eventData = jsonParse<IDataObject>(event.data as string, {
