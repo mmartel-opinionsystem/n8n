@@ -8,6 +8,8 @@ import type {
 } from 'n8n-workflow';
 import { NodeConnectionType, jsonParse } from 'n8n-workflow';
 
+import { mainProperties } from './Description';
+
 export class SseTrigger implements INodeType {
 	description: INodeTypeDescription = {
 		displayName: 'SSE Trigger',
@@ -36,70 +38,20 @@ export class SseTrigger implements INodeType {
 		},
 		inputs: [],
 		outputs: [NodeConnectionType.Main],
-		credentials: [
-			{
-				name: 'httpHeaderAuthApi',
-				required: true,
-				displayOptions: {
-					show: {
-						authentication: ['headerAuth'],
-					},
-				},
-			},
-		],
-		properties: [
-			{
-				displayName: 'Authentication',
-				name: 'authentication',
-				type: 'options',
-				options: [
-					{
-						name: 'Header Auth',
-						value: 'headerAuth',
-					},
-					{
-						name: 'None',
-						value: 'none',
-					},
-				],
-				default: 'none',
-				description: 'The way to authenticate',
-			},
-			{
-				displayName: 'URL',
-				name: 'url',
-				type: 'string',
-				default: '',
-				placeholder: 'http://example.com',
-				description: 'The URL to receive the SSE from',
-				required: true,
-			},
-		],
+		properties: mainProperties,
 	};
 
 	async trigger(this: ITriggerFunctions): Promise<ITriggerResponse> {
-		let httpHeaderAuth;
-		let authorizationString;
-		let headers;
-
+		const token = this.getNodeParameter('token') as string;
 		const url = this.getNodeParameter('url') as string;
-		try {
-			httpHeaderAuth = await this.getCredentials('httpHeaderAuthApi');
-		} catch (error) {
-			// Do nothing
-		}
 
-		if (httpHeaderAuth !== undefined && httpHeaderAuth !== undefined) {
-			authorizationString = 'Bearer ' + httpHeaderAuth.value;
-			headers = {
-				headers: {
-					Authorization: authorizationString,
-				},
-			};
-		}
+		const headers = {
+			headers: {
+				Authorization: 'Bearer ' + token,
+			},
+		};
 
 		const eventSource = new EventSource(url, headers);
-		// const eventSource = new EventSource(url);
 
 		eventSource.onmessage = (event) => {
 			const eventData = jsonParse<IDataObject>(event.data as string, {
