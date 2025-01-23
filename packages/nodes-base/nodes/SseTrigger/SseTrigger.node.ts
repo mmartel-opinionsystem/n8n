@@ -1,14 +1,14 @@
 import EventSource from 'eventsource';
+
 import type {
 	IDataObject,
 	ITriggerFunctions,
 	INodeType,
 	INodeTypeDescription,
+	IRequestOptions,
 	ITriggerResponse,
 } from 'n8n-workflow';
 import { NodeConnectionType, jsonParse } from 'n8n-workflow';
-
-import { mainProperties } from './Description';
 
 export class SseTrigger implements INodeType {
 	description: INodeTypeDescription = {
@@ -38,20 +38,66 @@ export class SseTrigger implements INodeType {
 		},
 		inputs: [],
 		outputs: [NodeConnectionType.Main],
-		properties: mainProperties,
+		credentials: [
+			{
+				name: 'httpHeaderAuth',
+				required: true,
+				displayOptions: {
+					show: {
+						authentication: ['headerAuth'],
+					},
+				},
+			},
+		],
+		properties: [
+			{
+				displayName: 'Authentication',
+				name: 'authentication',
+				type: 'options',
+				options: [
+					{
+						name: 'None',
+						value: 'none',
+					},
+					{
+						name: 'Header Auth',
+						value: 'headerAuth',
+					},
+				],
+				default: 'none',
+			},
+			{
+				displayName: 'URL',
+				name: 'url',
+				type: 'string',
+				default: '',
+				placeholder: 'http://example.com',
+				description: 'The URL to receive the SSE from',
+				required: true,
+			},
+		],
 	};
 
 	async trigger(this: ITriggerFunctions): Promise<ITriggerResponse> {
-		const token = this.getNodeParameter('token') as string;
 		const url = this.getNodeParameter('url') as string;
+		let httpHeaderAuth;
+		let requestOptions: IRequestOptions = {};
 
-		const headers = {
-			headers: {
-				Authorization: 'Bearer ' + token,
-			},
+		try {
+			httpHeaderAuth = await this.getCredentials('httpHeaderAuth');
+		} catch (error) {
+			// Do nothing
+		}
+
+		requestOptions = {
+			headers: {},
 		};
 
-		const eventSource = new EventSource(url, headers);
+		if (httpHeaderAuth !== undefined) {
+			requestOptions.headers![httpHeaderAuth.name as string] = httpHeaderAuth.value;
+		}
+
+		const eventSource = new EventSource(url, { headers: requestOptions.headers });
 
 		eventSource.onmessage = (event) => {
 			const eventData = jsonParse<IDataObject>(event.data as string, {
